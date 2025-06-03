@@ -1,68 +1,68 @@
 import pickle
 import numpy as np
-import gym
+import matplotlib.pyplot as plt
 
-from sac_torch import Agent
-from utils import plot_learning_curve
+# --- 1. Load Online SAC Data ---
+# Load the list of episode rewards for online training
+with open('lunarlander_online_scores.pkl', 'rb') as f:
+    ll_online_scores = pickle.load(f)
 
-def evaluate_policy(agent, env, n_episodes=10):
-    """Run the current policy without learning and return mean episode return."""
-    scores = []
-    for _ in range(n_episodes):
-        state = env.reset()
-        done = False
-        total_reward = 0.0
-        while not done:
-            # no 'evaluate' flag—just ask for the action
-            action = agent.choose_action(state)
-            # clip to action space bounds
-            action = np.clip(action, env.action_space.low, env.action_space.high)
-            state, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
-            total_reward += reward
-        scores.append(total_reward)
-    return np.mean(scores)
+# Try to load per-episode lengths (environment steps) so we can build a precise x-axis.
+# If you logged the length of each episode (e.g. number of timesteps until terminal),
+# save them in 'lunarlander_online_lens.pkl' as a list of ints.
+try:
+    with open('lunarlander_online_lens.pkl', 'rb') as f:
+        ll_online_lens = pickle.load(f)  # e.g. [200, 180, 220, …]
+    # Build a cumulative-sum array: at the end of episode i, how many env steps have been used.
+    ll_cum_steps_online = np.cumsum(ll_online_lens)
+except FileNotFoundError:
+    # If you did NOT log actual episode lengths, fall back to evenly spacing total steps:
+    # Adjust total_steps_ll to the true number of env steps you ran online.
+    total_steps_ll = 280_246
+    ll_cum_steps_online = np.array([
+        int(i * (total_steps_ll / len(ll_online_scores)))
+        for i in range(1, len(ll_online_scores) + 1)
+    ])
 
-if __name__ == "__main__":
-    #  Load  recorded transitions
-    with open('lunarlander_online_dataset.pkl', 'rb') as f:
-        dataset = pickle.load(f)
+# --- 2. Load Offline SAC Data ---
+# The offline pickle should contain a list of (gradient_step, avg_reward) tuples, e.g.:
+#     [(5000, 15.2), (10000, 18.5), ...]
+with open('lunarlander_offline_scores.pkl', 'rb') as f:
+    ll_offline_data = pickle.load(f)
 
-    #  Create env & SAC agent
-    env_id = 'LunarLanderContinuous-v2'
-    env = gym.make(env_id)
-    agent = Agent(
-        alpha=0.0003, beta=0.0003, reward_scale=2, env_id=env_id,
-        input_dims=env.observation_space.shape, tau=0.005,
-        env=env, batch_size=256, layer1_size=256, layer2_size=256,
-        n_actions=env.action_space.shape[0]
-    )
+# Unzip into two sequences:
+offline_steps, offline_scores = zip(*ll_offline_data)
+offline_steps   = np.array(offline_steps)   # e.g. [5000, 10000, 15000, …]
+offline_scores  = np.array(offline_scores)  # e.g. [15.2, 18.5, …]
 
-    #  Pre-fill the replay buffer
-    for obs, act, rew, obs_next, done in dataset:
-        agent.remember(obs, act, rew, obs_next, done)
+# --- 3. Plotting: “Steps” on X-Axis for Sample-Efficiency Comparison ---
+plt.figure(figsize=(10, 6))
 
-    #  Offline update loop
-    n_train_steps = 750000
-    eval_interval = 5000
-    eval_scores = []
-    for step in range(1, n_train_steps + 1):
-        agent.learn()
-        if step % eval_interval == 0:
-            avg_score = evaluate_policy(agent, env, n_episodes=5)
-            eval_scores.append((step, avg_score))
-            print(f"[Step {step:6d}] Eval avg reward: {avg_score:.2f}")
-            agent.save_models()
+# Plot Online: x = cumulative environment steps, y = episode reward
+plt.plot(
+    ll_cum_steps_online,
+    ll_online_scores,
+    label='Online SAC',
+    linewidth=2
+)
 
-    #  Plot evaluation curve
-    steps, scores = zip(*eval_scores)
-    figure_file = 'plots/lunarlander_offline_eval.png'
-    plot_learning_curve(steps, scores, figure_file)
-    print(f" Saved learning curve to {figure_file}")
+# Plot Offline: x = gradient-update steps, y = evaluation reward
+plt.plot(
+    offline_steps,
+    offline_scores,
+    label='Offline SAC',
+    linewidth=2
+)
 
-    # Save evaluation scores for plotting later
-    with open('lunarlander_offline_scores.pkl', 'wb') as f:
-        pickle.dump(eval_scores, f)
-    print(" Saved offline evaluation scores to 'lunarlander_offline_scores.pkl'")
+plt.title('LunarLanderContinuous-v2: Online vs. Offline SAC (by Steps)')
+plt.xlabel('Training Steps')
+plt.ylabel('Average Reward')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
 
+# Optionally save the figure to disk
+plt.savefig('plots/lunarlander_sac_step_comparison.png', dpi=300)
+print("Saved: plots/lunarlander_sac_step_comparison.png")
 
+plt.show()

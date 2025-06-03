@@ -4,13 +4,13 @@ import pickle
 import gym
 import numpy as np
 from sac_torch import Agent
-from utils import plot_learning_curve
+from utils import plot_learning_curve_with_shadow as plot_learning_curve
 
 # ——— Configuration ———
 ENV_ID        = 'Pendulum-v1'
 DATASET_FILE  = 'pendulum_online_dataset.pkl'
-N_TRAIN_STEPS = 200_000        # total gradient steps
-EVAL_INTERVAL = 10_000         # steps between evaluations
+N_TRAIN_STEPS = 200000        # total gradient steps
+EVAL_INTERVAL = 10000         # steps between evaluations
 N_EVAL_EPIS   = 5              # episodes per evaluation
 
 # hyper-params

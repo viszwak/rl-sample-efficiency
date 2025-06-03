@@ -2,7 +2,7 @@ import matplotlib
 matplotlib.use('Agg')       # for headless plotting
 import numpy as np
 from sac_torch import Agent
-from utils import plot_learning_curve
+from utils import plot_learning_curve_with_shadow as plot_learning_curve
 import gym
 import pickle
 
@@ -17,7 +17,7 @@ if __name__ == '__main__':
         n_actions=env.action_space.shape[0]
     )
 
-    n_games = 1000
+    n_games = 300
     figure_file = f"plots/{env_id}_{n_games}games_scale{agent.scale}.png"
     dataset_file = 'pendulum_online_dataset.pkl'
 
