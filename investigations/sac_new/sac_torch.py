@@ -41,7 +41,7 @@ class Agent():
         if isinstance(observation, tuple):
             observation = np.array(observation[0])
         
-        state = T.Tensor([observation]).to(self.actor.device)
+        state = T.tensor(observation, dtype=T.float32).unsqueeze(0).to(self.actor.device) #Updated
         actions, _ = self.actor.sample_normal(state, reparameterize=False)
 
         return actions.cpu().detach().numpy()[0]
