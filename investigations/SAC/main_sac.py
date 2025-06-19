@@ -77,9 +77,9 @@ if __name__ == '__main__':
     if not load_checkpoint:
         x = [i+1 for i in range(n_games)]
         plot_learning_curve(x, score_history, figure_file)
-        np.save('plots/online_sac_scores.npy', np.array(score_history))
+        np.save('plots/online_sac_score_5.npy', np.array(score_history))
 
-        with open("tmp/offline_sac_dataset.pkl", "wb") as f:
+        with open("tmp/offline_sac_dataset_5.pkl", "wb") as f:
             pickle.dump(agent.memory, f)
-        print("Replay buffer saved to tmp/offline_sac_dataset.pkl")
+        print("Replay buffer saved to tmp/offline_sac_dataset_5.pkl")
 

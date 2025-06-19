@@ -12,16 +12,21 @@ if __name__ == '__main__':
 
     agent = Agent(alpha=0.0003, beta=0.0003, reward_scale=2, env_id=env_id,
                   input_dims=env.observation_space.shape, tau=0.005,
-                  env=env, batch_size=128, layer1_size=256, layer2_size=256,
+                  env=env, batch_size=4096, layer1_size=256, layer2_size=256,
                   n_actions=env.action_space.shape[0])
+    
+    print("Actor device:", agent.actor.device)
+    print("Critic device:", agent.critic_1.device)
+    print("CUDA available:", torch.cuda.is_available())
+
 
     print("Loading offline dataset...")
     with open("tmp/offline_sac_dataset.pkl", "rb") as f:
         agent.memory = pickle.load(f)
     print(f"Loaded {agent.memory.mem_cntr} transitions.")
 
-    n_steps = 1_250_000  # adjust 
-    eval_interval = 10000  # evaluate every X learning steps
+    n_steps = 800_000  # adjust 
+    eval_interval = 20000  # evaluate every X learning steps
     score_history = []
     eval_games = 5  # episodes per evaluation
 
@@ -30,6 +35,9 @@ if __name__ == '__main__':
 
     for i in range(n_steps):
         agent.learn()
+        
+        if i % 10000 == 0:
+            print(f"[Step {i}] Time elapsed: {(time.time() - start_time)/60:.2f} min")
 
         if i % eval_interval == 0 or i == n_steps - 1:
             total_score = 0
