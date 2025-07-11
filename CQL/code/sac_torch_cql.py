@@ -1,10 +1,12 @@
+import os                    # NEW
 import torch
 import torch.nn.functional as F
 import numpy as np
 from networks import ActorNetwork as Actor, CriticNetwork
 
+
 class TwinCritic(torch.nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, chkpt_dir='tmp'):  # ← added chkpt_dir
         super().__init__()
         self.q1 = CriticNetwork(
             beta=3e-4,
@@ -13,7 +15,7 @@ class TwinCritic(torch.nn.Module):
             fc2_dims=256,
             n_actions=action_dim,
             name='q1',
-            chkpt_dir='tmp')
+            chkpt_dir=chkpt_dir)          # use sim-specific dir
 
         self.q2 = CriticNetwork(
             beta=3e-4,
@@ -22,7 +24,7 @@ class TwinCritic(torch.nn.Module):
             fc2_dims=256,
             n_actions=action_dim,
             name='q2',
-            chkpt_dir='tmp')
+            chkpt_dir=chkpt_dir)          # use sim-specific dir
 
     def Q1(self, s, a):
         return self.q1.forward(s, a)
@@ -33,10 +35,28 @@ class TwinCritic(torch.nn.Module):
     def forward(self, s, a):
         return self.Q1(s, a), self.Q2(s, a)
 
+
 class SAC_CQL:
-    def __init__(self, state_dim, action_dim, max_action, device,
-                 discount=0.99, tau=0.005, alpha=0.2, cql_alpha=0.1):
+    def __init__(
+        self,
+        state_dim,
+        action_dim,
+        max_action,
+        device,
+        sim=1,                                   # ← new sim arg (default = 1)
+        discount=0.99,
+        tau=0.005,
+        alpha=0.2,
+        cql_alpha=0.1
+    ):
         self.device = device
+        self.sim = sim                           # store sim ID
+
+        # -------- per-sim checkpoint directory ----------
+        self.chkpt_dir = f"models/sim{self.sim}"
+        os.makedirs(self.chkpt_dir, exist_ok=True)
+        # -------------------------------------------------
+
         self.actor = Actor(
             alpha=3e-4,
             input_dims=(state_dim,),
@@ -45,10 +65,11 @@ class SAC_CQL:
             n_actions=action_dim,
             max_action=max_action,
             name='actor',
-            chkpt_dir='tmp').to(device)
+            chkpt_dir=self.chkpt_dir             # sim-specific dir
+        ).to(device)
 
-        self.critic = TwinCritic(state_dim, action_dim).to(device)
-        self.critic_target = TwinCritic(state_dim, action_dim).to(device)
+        self.critic = TwinCritic(state_dim, action_dim, chkpt_dir=self.chkpt_dir).to(device)
+        self.critic_target = TwinCritic(state_dim, action_dim, chkpt_dir=self.chkpt_dir).to(device)
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         self.actor_optimizer = self.actor.optimizer
@@ -61,6 +82,22 @@ class SAC_CQL:
         self.cql_alpha = cql_alpha
         self.action_dim = action_dim
         self.state_dim = state_dim
+
+    # ------------------------------------------------------------------
+    #  NEW helpers to save / load all model components for this sim
+    # ------------------------------------------------------------------
+    def save_models(self):
+        """Save actor and twin-critic checkpoints to models/sim{N}."""
+        self.actor.save_checkpoint()
+        self.critic.q1.save_checkpoint()
+        self.critic.q2.save_checkpoint()
+
+    def load_models(self):
+        """Load actor and twin-critic checkpoints from models/sim{N}."""
+        self.actor.load_checkpoint()
+        self.critic.q1.load_checkpoint()
+        self.critic.q2.load_checkpoint()
+    # ------------------------------------------------------------------
 
     def select_action(self, state):
         state = torch.tensor(state.reshape(1, -1), dtype=torch.float32).to(self.device)

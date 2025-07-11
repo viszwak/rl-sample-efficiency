@@ -4,11 +4,11 @@ import os
 
 # Paths to the saved score arrays for CQL simulations
 file_paths = [
-    'plots/cql_scores.npy',
-    'plots/cql_scores_2.npy',
-    'plots/cql_scores_3.npy',
-    'plots/cql_scores_4.npy',
-    'plots/cql_scores_5.npy'
+    'results/sim1/scores.npy',
+    'results/sim2/scores.npy',
+    'results/sim3/scores.npy',
+    'results/sim4/scores.npy',
+    'results/sim5/scores.npy'
 ]
 
 # Plotting settings
@@ -45,5 +45,5 @@ plt.ylabel("Average Score")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("plots/cql_all_shadow_plot.png")
+plt.savefig("plots/cql_plot.png")
 plt.show()
