@@ -1,0 +1,16 @@
+{
+  "paths": {
+    "replay_buffer": "dataset/sim_1/replay_buffer.pkl",
+    "save_dir": "results/vae_lunar"
+  },
+  "model": {
+    "latent_dim": 4,
+    "batch_size": 1024,
+    "epochs": 100
+  },
+  "training": {
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "kl_weight": 0.1
+  }
+}
