@@ -32,7 +32,7 @@ if __name__ == '__main__':
     sim = args.sim
 
     # ---- Load buffer from correct path ----
-    buffer_path = f'dataset/sim_{sim}/replay_buffer.pkl'
+    buffer_path = f'dataset/unbiased_sim_1/replay_buffer.pkl'
     with open(buffer_path, 'rb') as f:
         replay_buffer: ReplayBuffer = pickle.load(f)
 
@@ -50,16 +50,16 @@ if __name__ == '__main__':
         max_action=max_action,
         device=device,
         sim=sim,
-        cql_alpha=0.1
+        cql_alpha=0.5   # CQL penalty weight
     )
 
-    results_dir = f'results/sim{sim}'
+    results_dir = f'results/unbiased_sim_15(0.5)'
     os.makedirs(results_dir, exist_ok=True)
 
     scores, steps = [], []
     eval_interval = 10_000
-    max_steps = 350_000
-    batch_size = 256
+    max_steps = 1_000_000
+    batch_size = 128
 
     for step in range(1, max_steps + 1):
         agent.train(replay_buffer, batch_size=batch_size)
