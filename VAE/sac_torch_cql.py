@@ -45,9 +45,9 @@ class SAC_CQL:
         device,
         sim=1,                                   # ← new sim arg (default = 1)
         discount=0.99,
-        tau=0.005,
-        alpha=0.2,
-        cql_alpha=5.0
+        tau=0.001,
+        alpha=0.01,
+        cql_alpha=0.05
     ):
         self.device = device
         self.sim = sim                           # store sim ID
@@ -58,7 +58,7 @@ class SAC_CQL:
         # -------------------------------------------------
 
         self.actor = Actor(
-            alpha=3e-4,
+            alpha=1e-4,
             input_dims=(state_dim,),
             fc1_dims=256,
             fc2_dims=256,
@@ -73,7 +73,7 @@ class SAC_CQL:
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         self.actor_optimizer = self.actor.optimizer
-        self.critic_optimizer = torch.optim.Adam(list(self.critic.parameters()), lr=3e-4)
+        self.critic_optimizer = torch.optim.Adam(list(self.critic.parameters()), lr=1e-4)
 
         self.max_action = max_action
         self.discount = discount
@@ -114,10 +114,11 @@ class SAC_CQL:
         not_done = torch.tensor(1 - done, dtype=torch.float32).unsqueeze(1).to(self.device)
 
         with torch.no_grad():
-            next_action, _ = self.actor.sample_normal(next_state, reparameterize=False)
+            next_action, logp_next = self.actor.sample_normal(next_state, reparameterize=False)
             target_q1 = self.critic_target.Q1(next_state, next_action)
             target_q2 = self.critic_target.Q2(next_state, next_action)
-            target_Q = reward + not_done * self.discount * torch.min(target_q1, target_q2)
+            min_target = torch.min(target_q1, target_q2) - self.alpha * logp_next
+            target_Q   = reward + not_done * self.discount * min_target
 
         current_q1 = self.critic.Q1(state, action)
         current_q2 = self.critic.Q2(state, action)
@@ -126,19 +127,23 @@ class SAC_CQL:
         q2_loss = F.mse_loss(current_q2, target_Q)
 
         # CQL penalty
-        num_samples = 10  # Increased for better estimation
+        num_samples = 2
         with torch.no_grad():
-            rand_actions = torch.empty(batch_size * num_samples, self.action_dim).uniform_(-self.max_action, self.max_action).to(self.device)
+            rand_actions = torch.empty(batch_size * num_samples, self.action_dim).uniform_(-1, 1).to(self.device)
 
-        s_repeat = state.unsqueeze(1).repeat(1, num_samples, 1).reshape(-1, self.state_dim).to(self.device)
+        s_repeat = state.unsqueeze(1).repeat(1, num_samples, 1).reshape(-1, self.state_dim)
         pol_actions, _ = self.actor.sample_normal(s_repeat, reparameterize=False)
         pol_actions = pol_actions.detach()
 
         q1_rand = self.critic.Q1(s_repeat, rand_actions).reshape(batch_size, num_samples)
         q2_rand = self.critic.Q2(s_repeat, rand_actions).reshape(batch_size, num_samples)
 
-        cql_q1 = (torch.logsumexp(q1_rand, dim=1, keepdim=True) - current_q1).mean()
-        cql_q2 = (torch.logsumexp(q2_rand, dim=1, keepdim=True) - current_q2).mean()
+        q1_pol  = self.critic.Q1(s_repeat, pol_actions).reshape(batch_size, num_samples)
+        q2_pol  = self.critic.Q2(s_repeat, pol_actions).reshape(batch_size, num_samples)
+        q1_cat  = torch.cat([q1_rand, q1_pol], dim=1)
+        q2_cat  = torch.cat([q2_rand, q2_pol], dim=1)
+        cql_q1  = (torch.logsumexp(q1_cat, dim=1) - current_q1.squeeze()).mean()
+        cql_q2  = (torch.logsumexp(q2_cat, dim=1) - current_q2.squeeze()).mean()
 
         q1_loss += self.cql_alpha * cql_q1
         q2_loss += self.cql_alpha * cql_q2
@@ -146,16 +151,18 @@ class SAC_CQL:
         critic_loss = q1_loss + q2_loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=1.0)
         self.critic_optimizer.step()
 
         # Actor update
-        pi, _ = self.actor.sample_normal(state, reparameterize=True)
+        pi, logp = self.actor.sample_normal(state, reparameterize=True)
         q1_pi = self.critic.Q1(state, pi)
         q2_pi = self.critic.Q2(state, pi)
-        actor_loss = (-torch.min(q1_pi, q2_pi)).mean()
+        actor_loss = (self.alpha * logp - torch.min(q1_pi, q2_pi)).mean()
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         self.actor_optimizer.step()
 
         # Soft target update

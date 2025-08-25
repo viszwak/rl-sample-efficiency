@@ -57,7 +57,7 @@ class ActorNetwork(nn.Module):
         self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
         self.reparam_noise = 1e-6
 
-        self.fc1 = nn.Linear(self.input_dims[0], self.fc1_dims)
+        self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims)
         self.mu = nn.Linear(self.fc2_dims, self.n_actions)
         self.sigma = nn.Linear(self.fc2_dims, self.n_actions)
@@ -88,12 +88,12 @@ class ActorNetwork(nn.Module):
         else:
             actions = probabilities.sample()
 
-        action = T.tanh(actions)*T.tensor(self.max_action).to(self.device) 
-        log_probs = probabilities.log_prob(actions)
-        log_probs -= T.log(1-action.pow(2) + self.reparam_noise)
-        log_probs = log_probs.sum(1, keepdim=True)
-
+        tanh_u   = T.tanh(actions)
+        action   = tanh_u * T.as_tensor(self.max_action, device=self.device, dtype=actions.dtype)
+        log_probs = probabilities.log_prob(actions) - T.log(1 - tanh_u.pow(2) + self.reparam_noise)
+        log_probs = log_probs.sum(dim=1, keepdim=True)
         return action, log_probs
+
 
     def save_checkpoint(self):
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -113,7 +113,7 @@ class ValueNetwork(nn.Module):
         self.checkpoint_dir = chkpt_dir
         self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
 
-        self.fc1 = nn.Linear(self.input_dims[0], self.fc1_dims)
+        self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims)
         self.v = nn.Linear(self.fc2_dims, 1)
 
@@ -138,4 +138,3 @@ class ValueNetwork(nn.Module):
 
     def load_checkpoint(self):
         self.load_state_dict(T.load(self.checkpoint_file))
-
