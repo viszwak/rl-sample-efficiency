@@ -31,7 +31,7 @@ with open(config["paths"]["replay_buffer"], "rb") as f:
 
 states = torch.tensor(buffer.state_memory, dtype=torch.float32)      # [N, 8]
 x_cont = states[:, :6]                                               # first 6 continuous dims
-# flags = states[:, 6:]  # not used in VAE; passthrough during RL
+# flags = states[:, 6:] passthrough during RL
 
 # Standardize continuous dims
 mean = x_cont.mean(dim=0)
@@ -52,9 +52,9 @@ train_loader = DataLoader(train_set, batch_size=config["model"]["batch_size"], s
 val_loader   = DataLoader(val_set,   batch_size=256)
 # test_loader  = DataLoader(test_set,  batch_size=256)  # optional
 
-# -------------------
+
 # Model, opt, sched
-# -------------------
+
 vae = VAE(input_dim=6, latent_dim=config["model"]["latent_dim"]).to(device)
 optimizer = optim.AdamW(
     vae.parameters(),
@@ -77,9 +77,9 @@ trigger_times = 0
 
 train_losses, val_losses = [], []
 
-# -------------------
+
 # Training loop
-# -------------------
+
 for epoch in range(config["model"]["epochs"]):
     vae.train()
     total_loss = 0.0

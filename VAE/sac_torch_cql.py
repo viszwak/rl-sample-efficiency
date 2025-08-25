@@ -6,7 +6,7 @@ from networks import ActorNetwork as Actor, CriticNetwork
 
 
 class TwinCritic(torch.nn.Module):
-    def __init__(self, state_dim, action_dim, chkpt_dir='tmp'):  # ← added chkpt_dir
+    def __init__(self, state_dim, action_dim, chkpt_dir='tmp'):  #  added chkpt_dir
         super().__init__()
         self.q1 = CriticNetwork(
             beta=3e-4,
@@ -43,7 +43,7 @@ class SAC_CQL:
         action_dim,
         max_action,
         device,
-        sim=1,                                   # ← new sim arg (default = 1)
+        sim=1,                                   
         discount=0.99,
         tau=0.001,
         alpha=0.01,
@@ -83,9 +83,7 @@ class SAC_CQL:
         self.action_dim = action_dim
         self.state_dim = state_dim
 
-    # ------------------------------------------------------------------
-    #  NEW helpers to save / load all model components for this sim
-    # ------------------------------------------------------------------
+
     def save_models(self):
         """Save actor and twin-critic checkpoints to models/sim{N}."""
         self.actor.save_checkpoint()
@@ -97,7 +95,7 @@ class SAC_CQL:
         self.actor.load_checkpoint()
         self.critic.q1.load_checkpoint()
         self.critic.q2.load_checkpoint()
-    # ------------------------------------------------------------------
+
 
     def select_action(self, state):
         state = torch.tensor(state.reshape(1, -1), dtype=torch.float32).to(self.device)

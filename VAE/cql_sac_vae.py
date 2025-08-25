@@ -9,7 +9,6 @@ from sac_torch_cql import SAC_CQL
 from buffer import ReplayBuffer
 #from utils import plot_learning_curve
 
-# --- Only needed for eval encoding ---
 from model.vae_vector import VAE
 
 def make_encoder(device, state_dim_from_buffer):
@@ -17,12 +16,12 @@ def make_encoder(device, state_dim_from_buffer):
     Load the trained VAE + scaler and return a function that maps
     an 8-D Lunar obs -> 6-D latent (z + 2 flags).
     """
-    # paths where you saved the VAE (adjust if you used different dirs)
+
     vae_ckpt_path = "results/vae_lunar/vae_best.pt"
     stats_path    = "results/vae_lunar/norm_stats.pkl"
 
     ckpt = T.load(vae_ckpt_path, map_location=device)
-    # infer latent dim from checkpoint (e.g., 4). Fallback: state_dim-2
+    # infer latent dim from checkpoint (4). Fallback: state_dim-2
     if isinstance(ckpt, dict) and "fc_mu.weight" in ckpt:
         z_dim = ckpt["fc_mu.weight"].shape[0]
     else:
@@ -54,12 +53,11 @@ def evaluate_policy(env, agent, encode_obs, episodes=5):
         done = False
         score = 0.0
         while not done:
-            # 8D -> 6D latent
             s_lat = encode_obs(obs)
             # deterministic action = tanh(mu)
             with T.no_grad():
                 s = T.tensor(s_lat, dtype=T.float32, device=agent.device).unsqueeze(0)
-                mu, _ = agent.actor(s)  # use the mean; ignore std
+                mu, _ = agent.actor(s)  # used the mean (can ignore std)
                 a = T.tanh(mu) * T.as_tensor(agent.max_action, device=agent.device, dtype=mu.dtype)
                 action = a.squeeze(0).cpu().numpy()
             obs, reward, terminated, truncated, _ = env.step(action)
@@ -76,13 +74,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     sim = args.sim
 
-    # ---- Load the VAE-encoded buffer ----
-    buffer_path = 'dataset/unbiased_sim_1/replay_buffer_vae.pkl'   # <— VAE file
+
+    buffer_path = 'dataset/unbiased_sim_1/replay_buffer_vae.pkl'   
     with open(buffer_path, 'rb') as f:
         replay_buffer: ReplayBuffer = pickle.load(f)
 
-    # ---- Get dims from buffer (REQUIRED for VAE) ----
-    state_dim = replay_buffer.state_memory.shape[1]   # should be 6 (z + 2 flags)
+
+    state_dim = replay_buffer.state_memory.shape[1]   # for examp; : if should be 6 (z + 2 flags)
     action_dim = replay_buffer.action_memory.shape[1]
 
     env_id = 'LunarLanderContinuous-v2'
@@ -96,13 +94,13 @@ if __name__ == '__main__':
         max_action=max_action,
         device=device,
         sim=sim,
-        cql_alpha=0.05   # keep your original hparam choices
+        cql_alpha=0.05  
     )
 
-    # --- Encoder for eval (only used in evaluate_policy) ---
+   
     encode_obs = make_encoder(device, state_dim_from_buffer=state_dim)
 
-    results_dir = 'results/unbiased_sim_4_vae(0.05)'   # tag it as vae-run
+    results_dir = 'results/unbiased_sim_4_vae(0.05)'   
     os.makedirs(results_dir, exist_ok=True)
 
     scores, steps = [], []

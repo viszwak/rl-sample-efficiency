@@ -1,4 +1,3 @@
-# encode_dataset.py  (mem_cntr-aware + preserve original mem_size)
 import os, pickle, numpy as np, torch
 from model.vae_vector import VAE
 
@@ -10,7 +9,7 @@ batch_size = 2048
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load VAE (input_dim=6; latent inferred)
+
 ckpt = torch.load(vae_model_path, map_location=device)
 z_dim = ckpt["fc_mu.weight"].shape[0] if isinstance(ckpt, dict) and "fc_mu.weight" in ckpt else 4
 vae = VAE(input_dim=6, latent_dim=z_dim).to(device)
@@ -18,7 +17,7 @@ vae.load_state_dict(ckpt)
 vae.eval()
 for p in vae.parameters(): p.requires_grad = False
 
-# Load scaler (continuous 6 dims)
+# Load scaler
 with open(norm_stats_path, "rb") as f:
     stats = pickle.load(f)
 if "mean_cont" in stats:
@@ -37,11 +36,11 @@ mem_size  = buffer.state_memory.shape[0]
 filled    = getattr(buffer, "mem_cntr", mem_size)  # number of valid rows
 new_dim   = z_dim + 2
 
-# Preallocate to ORIGINAL mem_size so shapes stay compatible
+
 latent_states      = np.zeros((mem_size, new_dim), dtype=np.float32)
 latent_next_states = np.zeros((mem_size, new_dim), dtype=np.float32)
 
-# Encode ONLY the filled rows
+# Encode  just only filled rows
 for start in range(0, filled, batch_size):
     end = min(start + batch_size, filled)
 
@@ -66,11 +65,11 @@ for start in range(0, filled, batch_size):
     latent_states[start:end]      = s_latent.cpu().numpy()
     latent_next_states[start:end] = s_next_latent.cpu().numpy()
 
-# Replace arrays in buffer; keep mem_size & mem_cntr as-is
+# Replace arrays in buffer, but keeping mem_size & mem_cntr as-is
 buffer.state_memory     = latent_states
 buffer.new_state_memory = latent_next_states
-# Optionally expose new input shape for downstream code that reads it
-buffer.input_shape = (new_dim,)  # harmless addition
+
+buffer.input_shape = (new_dim,)  
 
 # Save
 os.makedirs(os.path.dirname(save_path), exist_ok=True)
